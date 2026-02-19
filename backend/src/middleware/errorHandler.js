@@ -1,5 +1,5 @@
 const errorHandler = (err, req, res, next) => {
-    console.error('Error:', err);
+    console.error('❌ Error:', err);
 
     // Default error
     let error = { ...err };
@@ -17,14 +17,13 @@ const errorHandler = (err, req, res, next) => {
     }
 
     if (err.code === '42P01') {
-        const message = 'Tabel tidak ditemukan.';
+        const message = 'Tabel tidak ditemukan. Pastikan database sudah diinisialisasi.';
         error = { message, statusCode: 500 };
     }
 
-    // Validation error
-    if (err.name === 'ValidationError') {
-        const message = Object.values(err.errors).map(val => val.message).join(', ');
-        error = { message, statusCode: 400 };
+    if (err.code === '42703') {
+        const message = 'Kolom tidak ditemukan di database.';
+        error = { message, statusCode: 500 };
     }
 
     // JWT error
@@ -38,9 +37,10 @@ const errorHandler = (err, req, res, next) => {
         error = { message, statusCode: 401 };
     }
 
+    // Send response
     res.status(error.statusCode || 500).json({
         success: false,
-        error: error.message || 'Server Error'
+        error: error.message || 'Terjadi kesalahan pada server'
     });
 };
 

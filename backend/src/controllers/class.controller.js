@@ -1,46 +1,54 @@
 const { supabase } = require('../config/supabase');
 const { validationResult } = require('express-validator');
-const { createNotification } = require('../utils/notification');
 
 const getClasses = async (req, res, next) => {
     try {
-        const { page = 1, limit = 10, academicYearId } = req.query;
-        const offset = (page - 1) * limit;
+        const { limit = 100 } = req.query;
+        
+        console.log('Fetching classes with limit:', limit);
 
-        let query = supabase
+        const { data: classes, error } = await supabase
             .from('classes')
             .select(`
                 *,
-                jurusan:jurusan_id(name, code),
-                academic_year:academic_year_id(year, semester),
-                homeroom_teacher:homeroom_teacher_id(
-                    user:user_id(full_name)
+                jurusan:jurusan_id (
+                    id,
+                    name,
+                    code
                 ),
-                students:students(count)
-            `, { count: 'exact' });
-
-        if (academicYearId) {
-            query = query.eq('academic_year_id', academicYearId);
-        }
-
-        const { data: classes, error, count } = await query
-            .range(offset, offset + limit - 1)
-            .order('grade_level')
+                academic_year:academic_year_id (
+                    id,
+                    year,
+                    semester,
+                    is_active
+                ),
+                homeroom_teacher:homeroom_teacher_id (
+                    id,
+                    user:user_id (
+                        id,
+                        full_name
+                    )
+                )
+            `)
+            .limit(limit)
             .order('name');
 
-        if (error) throw error;
+        if (error) {
+            console.error('Supabase error:', error);
+            return res.status(500).json({ 
+                error: 'Gagal mengambil data kelas',
+                details: error.message 
+            });
+        }
+
+        console.log('Classes fetched:', classes?.length || 0);
 
         res.json({
             success: true,
-            data: classes,
-            pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
-                total: count,
-                pages: Math.ceil(count / limit)
-            }
+            data: classes || []
         });
     } catch (error) {
+        console.error('Server error:', error);
         next(error);
     }
 };
@@ -62,17 +70,13 @@ const getClassById = async (req, res, next) => {
                 students:students(
                     *,
                     user:user_id(full_name, email)
-                ),
-                schedules:schedules(
-                    *,
-                    subject:subject_id(name),
-                    teacher:teacher_id(user:user_id(full_name))
                 )
             `)
             .eq('id', id)
             .single();
 
-        if (error || !classData) {
+        if (error) {
+            console.error('Supabase error:', error);
             return res.status(404).json({ error: 'Kelas tidak ditemukan' });
         }
 
@@ -81,57 +85,7 @@ const getClassById = async (req, res, next) => {
             data: classData
         });
     } catch (error) {
-        next(error);
-    }
-};
-
-const getClassesByAcademicYear = async (req, res, next) => {
-    try {
-        const { academicYearId } = req.params;
-
-        const { data: classes, error } = await supabase
-            .from('classes')
-            .select('*')
-            .eq('academic_year_id', academicYearId)
-            .order('name');
-
-        if (error) throw error;
-
-        res.json({
-            success: true,
-            data: classes
-        });
-    } catch (error) {
-        next(error);
-    }
-};
-
-const getAvailableClasses = async (req, res, next) => {
-    try {
-        const { academicYearId } = req.query;
-
-        const { data: classes, error } = await supabase
-            .from('classes')
-            .select(`
-                id,
-                name,
-                grade_level,
-                capacity,
-                students:students(count)
-            `)
-            .eq('academic_year_id', academicYearId);
-
-        if (error) throw error;
-
-        const availableClasses = classes.filter(c => 
-            !c.capacity || (c.students?.[0]?.count || 0) < c.capacity
-        );
-
-        res.json({
-            success: true,
-            data: availableClasses
-        });
-    } catch (error) {
+        console.error('Server error:', error);
         next(error);
     }
 };
@@ -143,23 +97,15 @@ const createClass = async (req, res, next) => {
             return res.status(400).json({ errors: errors.array() });
         }
 
-        const { 
-            name, 
-            gradeLevel, 
-            jurusanId, 
-            academicYearId, 
-            homeroomTeacherId, 
-            capacity, 
-            roomNumber 
-        } = req.body;
+        const { name, gradeLevel, jurusanId, academicYearId, homeroomTeacherId, capacity, roomNumber } = req.body;
 
-        // Check if class already exists for this academic year
+        // Check if class already exists
         const { data: existing } = await supabase
             .from('classes')
             .select('id')
             .eq('name', name)
             .eq('academic_year_id', academicYearId)
-            .single();
+            .maybeSingle();
 
         if (existing) {
             return res.status(400).json({ error: 'Kelas dengan nama ini sudah ada di tahun ajaran yang sama' });
@@ -180,25 +126,9 @@ const createClass = async (req, res, next) => {
             .select()
             .single();
 
-        if (error) throw error;
-
-        // Notify homeroom teacher
-        if (homeroomTeacherId) {
-            const { data: teacher } = await supabase
-                .from('teachers')
-                .select('user_id')
-                .eq('id', homeroomTeacherId)
-                .single();
-
-            if (teacher) {
-                await createNotification({
-                    userId: teacher.user_id,
-                    title: 'Penunjukan Wali Kelas',
-                    message: `Anda ditunjuk sebagai wali kelas ${name}`,
-                    type: 'class_assignment',
-                    referenceId: classData.id
-                });
-            }
+        if (error) {
+            console.error('Supabase error:', error);
+            return res.status(500).json({ error: error.message });
         }
 
         res.status(201).json({
@@ -207,6 +137,7 @@ const createClass = async (req, res, next) => {
             data: classData
         });
     } catch (error) {
+        console.error('Server error:', error);
         next(error);
     }
 };
@@ -214,26 +145,12 @@ const createClass = async (req, res, next) => {
 const updateClass = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { 
-            name, 
-            gradeLevel, 
-            jurusanId, 
-            homeroomTeacherId, 
-            capacity, 
-            roomNumber,
-            isActive 
-        } = req.body;
+        const updates = req.body;
 
         const { data: classData, error } = await supabase
             .from('classes')
             .update({
-                name,
-                grade_level: gradeLevel,
-                jurusan_id: jurusanId,
-                homeroom_teacher_id: homeroomTeacherId,
-                capacity,
-                room_number: roomNumber,
-                is_active: isActive,
+                ...updates,
                 updated_by: req.userId,
                 updated_at: new Date()
             })
@@ -241,7 +158,10 @@ const updateClass = async (req, res, next) => {
             .select()
             .single();
 
-        if (error) throw error;
+        if (error) {
+            console.error('Supabase error:', error);
+            return res.status(500).json({ error: error.message });
+        }
 
         if (!classData) {
             return res.status(404).json({ error: 'Kelas tidak ditemukan' });
@@ -253,6 +173,7 @@ const updateClass = async (req, res, next) => {
             data: classData
         });
     } catch (error) {
+        console.error('Server error:', error);
         next(error);
     }
 };
@@ -276,13 +197,17 @@ const deleteClass = async (req, res, next) => {
             .delete()
             .eq('id', id);
 
-        if (error) throw error;
+        if (error) {
+            console.error('Supabase error:', error);
+            return res.status(500).json({ error: error.message });
+        }
 
         res.json({
             success: true,
             message: 'Kelas berhasil dihapus'
         });
     } catch (error) {
+        console.error('Server error:', error);
         next(error);
     }
 };
@@ -290,8 +215,6 @@ const deleteClass = async (req, res, next) => {
 module.exports = {
     getClasses,
     getClassById,
-    getClassesByAcademicYear,
-    getAvailableClasses,
     createClass,
     updateClass,
     deleteClass

@@ -1,8 +1,10 @@
 import axios from 'axios';
-import toast from 'react-hot-toast';
+
+const API_URL = 'http://localhost:5000/api';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: API_URL,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -15,49 +17,43 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    console.log('🚀 Request:', config.method?.toUpperCase(), config.url);
     return config;
   },
   (error) => {
+    console.error('❌ Request Error:', error);
     return Promise.reject(error);
   }
 );
 
 // Response interceptor
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    console.log('✅ Response:', response.config.url, response.status);
+    return response.data;
+  },
   (error) => {
-    if (error.response) {
-      // Handle specific error statuses
-      switch (error.response.status) {
-        case 401:
-          // Unauthorized - clear token and redirect to login
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          window.location.href = '/login';
-          toast.error('Sesi anda telah berakhir. Silakan login kembali.');
-          break;
-        case 403:
-          toast.error('Anda tidak memiliki izin untuk mengakses resource ini.');
-          break;
-        case 404:
-          toast.error('Resource tidak ditemukan.');
-          break;
-        case 422:
-          toast.error('Validasi gagal. Periksa kembali input anda.');
-          break;
-        case 500:
-          toast.error('Terjadi kesalahan pada server. Silakan coba lagi.');
-          break;
-        default:
-          toast.error(error.response.data?.error || 'Terjadi kesalahan');
+    if (error.code === 'ERR_NETWORK') {
+      console.error('❌ Network Error - Backend tidak merespon');
+      alert('Koneksi ke server gagal. Pastikan backend berjalan di http://localhost:5000');
+    } else if (error.response) {
+      console.error('❌ Server Error:', error.response.status, error.response.data);
+      
+      // Handle 401 Unauthorized
+      if (error.response.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
       }
-    } else if (error.request) {
-      // Network error
-      toast.error('Tidak dapat terhubung ke server. Periksa koneksi internet anda.');
+      
+      // Handle 500 Internal Server Error
+      if (error.response.status === 500) {
+        console.error('❌ Internal Server Error:', error.response.data);
+        alert('Terjadi kesalahan pada server. Silakan cek console untuk detail.');
+      }
     } else {
-      toast.error('Terjadi kesalahan yang tidak diketahui');
+      console.error('❌ Error:', error.message);
     }
-    
     return Promise.reject(error);
   }
 );
