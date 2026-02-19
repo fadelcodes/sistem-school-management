@@ -2,10 +2,39 @@ services:
   - type: web
     name: sekolah-backend
     env: node
-    buildCommand: cd backend && npm install
-    startCommand: cd backend && npm start
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 5000
+      - key: SUPABASE_URL
+        value: https://apdeyuvuhcbmjkxjvowl.supabase.co
+      - key: SUPABASE_ANON_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwZGV5dXZ1aGNibWpreGp2b3dsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE0NDIxNjksImV4cCI6MjA4NzAxODE2OX0.NFSX3gs_CgT5J9QcDwkdJ8cVfHV1c7Wm-L-KbvMY7ws
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwZGV5dXZ1aGNibWpreGp2b3dsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTQ0MjE2OSwiZXhwIjoyMDg3MDE4MTY5fQ.uvAyzC53y5ZtfXlqvTVF6rWXbIKYNqCdyUumTBGlQ_c
+      - key: DB_HOST
+        value: db.apdeyuvuhcbmjkxjvowl.supabase.co
+      - key: DB_PORT
+        value: 5432
+      - key: DB_NAME
+        value: postgres
+      - key: DB_USER
+        value: postgres
+      - key: DB_PASSWORD
+        value: bondanfadel123
+      - key: JWT_SECRET
+        value: 2Ij5QSKBaEm1SYLtlJV7axkR8s47RmFZ9J/2tajHmK6BsMOlYh7AfDCQbIZGG+Hwy3954ZsGPVFLTPUJpYuVrg==
+      - key: JWT_EXPIRE
+        value: 7d
+      - key: JWT_REFRESH_SECRET
+        value: eb90f220f835068f4800f626bf2c98144cb7a3f29b648b923d504d35a8af4c3e
+      - key: JWT_REFRESH_EXPIRE
+        value: 30d
+      - key: CORS_ORIGIN
+        value: "http://localhost:5173,http://localhost:3000,https://sekolah-frontend.vercel.app"
+      - key: FRONTEND_URL
+        value: "https://sekolah-frontend.vercel.app"
