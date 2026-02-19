@@ -1,0 +1,3 @@
+Generate dengan Node.js: Jalankan perintah ini di terminal
+
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
